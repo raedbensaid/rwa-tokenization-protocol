@@ -225,7 +225,7 @@ describe("AssetToken", function () {
         token
           .connect(unauthorized)
           .mint(investor.address, 1000n)
-      ).to.be.reverted;
+      ).to.be.revert(ethers);
     });
 
     it("rejects minting to the zero address", async function () {
@@ -235,7 +235,7 @@ describe("AssetToken", function () {
         token
           .connect(owner)
           .mint(ethers.ZeroAddress, 1000n)
-      ).to.be.reverted;
+      ).to.be.revert(ethers);
     });
   });
 
@@ -306,7 +306,7 @@ describe("AssetToken", function () {
         token
           .connect(unauthorized)
           .burn(investor.address, 1000n)
-      ).to.be.reverted;
+      ).to.be.revert(ethers);
     });
   });
 
@@ -380,7 +380,7 @@ describe("AssetToken", function () {
         token
           .connect(investor)
           .transfer(owner.address, 100n)
-      ).to.be.reverted;
+      ).to.be.revert(ethers);
     });
 
     it("allows the pauser to unpause the token", async function () {
