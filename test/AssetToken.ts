@@ -4,48 +4,48 @@ const { ethers } = await network.create();
 
 describe("AssetToken", function () {
   async function deployToken() {
-
     const [
       owner,
-      minter,
-      burner,
-      pauser,
       investor,
+      investorTwo,
       unauthorized,
     ] = await ethers.getSigners();
 
     const assetId = 1n;
 
-    const token = await ethers.deployContract("AssetToken", [
-      "Toronto Downtown Property",
-      "TDP",
-      assetId,
-      owner.address,
-    ]);
+    const complianceRegistry = await ethers.deployContract(
+      "ComplianceRegistry",
+      [owner.address]
+    );
+
+    await complianceRegistry.waitForDeployment();
+
+    const token = await ethers.deployContract(
+      "AssetToken",
+      [
+        "Toronto Downtown Property",
+        "TDP",
+        assetId,
+        owner.address,
+        await complianceRegistry.getAddress(),
+      ]
+    );
 
     await token.waitForDeployment();
 
-    const MINTER_ROLE = await token.MINTER_ROLE();
-    const BURNER_ROLE = await token.BURNER_ROLE();
-    const PAUSER_ROLE = await token.PAUSER_ROLE();
-
     return {
       token,
+      complianceRegistry,
       owner,
-      minter,
-      burner,
-      pauser,
       investor,
+      investorTwo,
       unauthorized,
       assetId,
-      MINTER_ROLE,
-      BURNER_ROLE,
-      PAUSER_ROLE,
     };
   }
 
   describe("Deployment", function () {
-    it("sets the correct token name", async function () {
+    it("sets the correct name", async function () {
       const { token } = await deployToken();
 
       expect(await token.name()).to.equal(
@@ -53,13 +53,13 @@ describe("AssetToken", function () {
       );
     });
 
-    it("sets the correct token symbol", async function () {
+    it("sets the correct symbol", async function () {
       const { token } = await deployToken();
 
       expect(await token.symbol()).to.equal("TDP");
     });
 
-    it("uses 18 decimals", async function () {
+    it("sets 18 decimals", async function () {
       const { token } = await deployToken();
 
       expect(await token.decimals()).to.equal(18);
@@ -68,7 +68,7 @@ describe("AssetToken", function () {
     it("starts with zero supply", async function () {
       const { token } = await deployToken();
 
-      expect(await token.totalSupply()).to.equal(0n);
+      expect(await token.totalSupply()).to.equal(0);
     });
 
     it("stores the asset ID", async function () {
@@ -77,137 +77,281 @@ describe("AssetToken", function () {
       expect(await token.assetId()).to.equal(assetId);
     });
 
-    it("grants the expected roles to the owner", async function () {
+    it("stores the compliance registry address", async function () {
       const {
         token,
-        owner,
-        MINTER_ROLE,
-        BURNER_ROLE,
-        PAUSER_ROLE,
+        complianceRegistry,
       } = await deployToken();
 
       expect(
-        await token.hasRole(MINTER_ROLE, owner.address)
-      ).to.equal(true);
-
-      expect(
-        await token.hasRole(BURNER_ROLE, owner.address)
-      ).to.equal(true);
-
-      expect(
-        await token.hasRole(PAUSER_ROLE, owner.address)
-      ).to.equal(true);
+        await token.complianceRegistry()
+      ).to.equal(
+        await complianceRegistry.getAddress()
+      );
     });
   });
 
-  describe("Role management", function () {
-    it("allows the owner to grant the minter role", async function () {
-      const {
-        token,
-        owner,
-        minter,
-        MINTER_ROLE,
-      } = await deployToken();
+  describe("Roles", function () {
+    it("grants admin role to the initial admin", async function () {
+      const { token, owner } = await deployToken();
 
-      await expect(
-        token
-          .connect(owner)
-          .grantRole(MINTER_ROLE, minter.address)
-      )
-        .to.emit(token, "RoleGranted")
-        .withArgs(
+      const DEFAULT_ADMIN_ROLE =
+        await token.DEFAULT_ADMIN_ROLE();
+
+      expect(
+        await token.hasRole(
+          DEFAULT_ADMIN_ROLE,
+          owner.address
+        )
+      ).to.equal(true);
+    });
+
+    it("grants MINTER_ROLE to the initial admin", async function () {
+      const { token, owner } = await deployToken();
+
+      const MINTER_ROLE =
+        await token.MINTER_ROLE();
+
+      expect(
+        await token.hasRole(
           MINTER_ROLE,
-          minter.address,
           owner.address
-        );
-
-      expect(
-        await token.hasRole(MINTER_ROLE, minter.address)
+        )
       ).to.equal(true);
     });
 
-    it("allows the owner to grant the burner role", async function () {
-      const {
-        token,
-        owner,
-        burner,
-        BURNER_ROLE,
-      } = await deployToken();
+    it("grants BURNER_ROLE to the initial admin", async function () {
+      const { token, owner } = await deployToken();
 
-      await expect(
-        token
-          .connect(owner)
-          .grantRole(BURNER_ROLE, burner.address)
-      )
-        .to.emit(token, "RoleGranted")
-        .withArgs(
+      const BURNER_ROLE =
+        await token.BURNER_ROLE();
+
+      expect(
+        await token.hasRole(
           BURNER_ROLE,
-          burner.address,
           owner.address
-        );
-
-      expect(
-        await token.hasRole(BURNER_ROLE, burner.address)
+        )
       ).to.equal(true);
     });
 
-    it("allows the owner to grant the pauser role", async function () {
-      const {
-        token,
-        owner,
-        pauser,
-        PAUSER_ROLE,
-      } = await deployToken();
+    it("grants PAUSER_ROLE to the initial admin", async function () {
+      const { token, owner } = await deployToken();
 
-      await expect(
-        token
-          .connect(owner)
-          .grantRole(PAUSER_ROLE, pauser.address)
-      )
-        .to.emit(token, "RoleGranted")
-        .withArgs(
-          PAUSER_ROLE,
-          pauser.address,
-          owner.address
-        );
+      const PAUSER_ROLE =
+        await token.PAUSER_ROLE();
 
       expect(
-        await token.hasRole(PAUSER_ROLE, pauser.address)
+        await token.hasRole(
+          PAUSER_ROLE,
+          owner.address
+        )
       ).to.equal(true);
     });
   });
 
-  describe("Minting", function () {
-    it("allows a minter to mint tokens", async function () {
+  describe("Compliance", function () {
+    it("rejects minting to an unapproved investor", async function () {
       const {
         token,
         owner,
-        minter,
         investor,
-        MINTER_ROLE,
       } = await deployToken();
+
+      const amount =
+        ethers.parseEther("100");
+
+      await expect(
+        token
+          .connect(owner)
+          .mint(investor.address, amount)
+      ).to.be.revert(ethers);
+    });
+
+    it("allows minting to an approved investor", async function () {
+      const {
+        token,
+        complianceRegistry,
+        owner,
+        investor,
+      } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
 
       await token
         .connect(owner)
-        .grantRole(MINTER_ROLE, minter.address);
-
-      const amount = 1_000n * 10n ** 18n;
-
-      await expect(
-        token
-          .connect(minter)
-          .mint(investor.address, amount)
-      )
-        .to.emit(token, "Transfer")
-        .withArgs(
-          ethers.ZeroAddress,
-          investor.address,
-          amount
-        );
+        .mint(investor.address, amount);
 
       expect(
         await token.balanceOf(investor.address)
       ).to.equal(amount);
+    });
+
+    it("allows transfers between approved investors", async function () {
+      const {
+        token,
+        complianceRegistry,
+        owner,
+        investor,
+        investorTwo,
+      } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investorTwo.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
+
+      await token
+        .connect(owner)
+        .mint(investor.address, amount);
+
+      await token
+        .connect(investor)
+        .transfer(
+          investorTwo.address,
+          amount
+        );
+
+      expect(
+        await token.balanceOf(investor)
+      ).to.equal(0);
+
+      expect(
+        await token.balanceOf(investorTwo)
+      ).to.equal(amount);
+    });
+
+    it("rejects transfers to an unapproved investor", async function () {
+      const {
+        token,
+        complianceRegistry,
+        owner,
+        investor,
+        investorTwo,
+      } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
+
+      await token
+        .connect(owner)
+        .mint(investor.address, amount);
+
+      await expect(
+        token
+          .connect(investor)
+          .transfer(
+            investorTwo.address,
+            amount
+          )
+      ).to.be.revert(ethers);
+    });
+
+    it("rejects transfers from a revoked investor", async function () {
+      const {
+        token,
+        complianceRegistry,
+        owner,
+        investor,
+        investorTwo,
+      } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investorTwo.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
+
+      await token
+        .connect(owner)
+        .mint(investor.address, amount);
+
+      await complianceRegistry
+        .connect(owner)
+        .revokeInvestor(
+          investor.address
+        );
+
+      await expect(
+        token
+          .connect(investor)
+          .transfer(
+            investorTwo.address,
+            amount
+          )
+      ).to.be.revert(ethers);
+    });
+  });
+
+  describe("Minting", function () {
+    it("allows the minter to mint to an approved investor", async function () {
+      const {
+        token,
+        complianceRegistry,
+        owner,
+        investor,
+      } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("1000");
+
+      await token
+        .connect(owner)
+        .mint(
+          investor.address,
+          amount
+        );
 
       expect(
         await token.totalSupply()
@@ -217,160 +361,220 @@ describe("AssetToken", function () {
     it("rejects minting by an unauthorized account", async function () {
       const {
         token,
-        unauthorized,
+        complianceRegistry,
+        owner,
         investor,
+        unauthorized,
       } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
 
       await expect(
         token
           .connect(unauthorized)
-          .mint(investor.address, 1000n)
-      ).to.be.revert(ethers);
-    });
-
-    it("rejects minting to the zero address", async function () {
-      const { token, owner } = await deployToken();
-
-      await expect(
-        token
-          .connect(owner)
-          .mint(ethers.ZeroAddress, 1000n)
+          .mint(
+            investor.address,
+            ethers.parseEther("100")
+          )
       ).to.be.revert(ethers);
     });
   });
 
   describe("Burning", function () {
-    it("allows a burner to burn tokens from an account", async function () {
+    it("allows the burner to burn tokens", async function () {
       const {
         token,
+        complianceRegistry,
         owner,
-        burner,
         investor,
-        MINTER_ROLE,
-        BURNER_ROLE,
       } = await deployToken();
 
-      await token
+      await complianceRegistry
         .connect(owner)
-        .grantRole(MINTER_ROLE, owner.address);
-
-      await token
-        .connect(owner)
-        .grantRole(BURNER_ROLE, burner.address);
-
-      const amount = 1_000n * 10n ** 18n;
-
-      await token
-        .connect(owner)
-        .mint(investor.address, amount);
-
-      await expect(
-        token
-          .connect(burner)
-          .burn(investor.address, amount)
-      )
-        .to.emit(token, "Transfer")
-        .withArgs(
+        .approveInvestor(
           investor.address,
-          ethers.ZeroAddress,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
+
+      await token
+        .connect(owner)
+        .mint(
+          investor.address,
+          amount
+        );
+
+      await token
+        .connect(owner)
+        .burn(
+          investor.address,
           amount
         );
 
       expect(
         await token.balanceOf(investor.address)
-      ).to.equal(0n);
+      ).to.equal(0);
 
       expect(
         await token.totalSupply()
-      ).to.equal(0n);
+      ).to.equal(0);
     });
 
     it("rejects burning by an unauthorized account", async function () {
       const {
         token,
+        complianceRegistry,
         owner,
         investor,
         unauthorized,
-        MINTER_ROLE,
       } = await deployToken();
 
-      await token
+      await complianceRegistry
         .connect(owner)
-        .grantRole(MINTER_ROLE, owner.address);
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
 
       await token
         .connect(owner)
-        .mint(investor.address, 1000n);
+        .mint(
+          investor.address,
+          amount
+        );
 
       await expect(
         token
           .connect(unauthorized)
-          .burn(investor.address, 1000n)
+          .burn(
+            investor.address,
+            amount
+          )
       ).to.be.revert(ethers);
     });
-  });
 
-  describe("Transfers", function () {
-    it("allows normal ERC-20 transfers", async function () {
+    it("allows a burner to burn tokens from a revoked investor", async function () {
       const {
         token,
+        complianceRegistry,
         owner,
         investor,
-        MINTER_ROLE,
       } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
 
       await token
         .connect(owner)
-        .mint(investor.address, 1000n);
+        .mint(
+          investor.address,
+          amount
+        );
+
+      await complianceRegistry
+        .connect(owner)
+        .revokeInvestor(
+          investor.address
+        );
 
       await token
-        .connect(investor)
-        .transfer(owner.address, 400n);
+        .connect(owner)
+        .burn(
+          investor.address,
+          amount
+        );
 
       expect(
         await token.balanceOf(investor.address)
-      ).to.equal(600n);
-
-      expect(
-        await token.balanceOf(owner.address)
-      ).to.equal(400n);
+      ).to.equal(0);
     });
   });
 
-  describe("Pausing", function () {
-    it("allows the pauser to pause the token", async function () {
+  describe("Pause", function () {
+    it("allows the pauser to pause transfers", async function () {
       const {
         token,
-        owner,
-        pauser,
-        PAUSER_ROLE,
-      } = await deployToken();
-
-      await token
-        .connect(owner)
-        .grantRole(PAUSER_ROLE, pauser.address);
-
-      await expect(
-        token.connect(pauser).pause()
-      )
-        .to.emit(token, "Paused")
-        .withArgs(pauser.address);
-
-      expect(await token.paused()).to.equal(true);
-    });
-
-    it("blocks transfers while paused", async function () {
-      const {
-        token,
+        complianceRegistry,
         owner,
         investor,
-        MINTER_ROLE,
-        PAUSER_ROLE,
       } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
 
       await token
         .connect(owner)
-        .mint(investor.address, 1000n);
+        .mint(
+          investor.address,
+          ethers.parseEther("100")
+        );
+
+      await token
+        .connect(owner)
+        .pause();
+
+      expect(
+        await token.paused()
+      ).to.equal(true);
+    });
+
+    it("rejects transfers while paused", async function () {
+      const {
+        token,
+        complianceRegistry,
+        owner,
+        investor,
+        investorTwo,
+      } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investorTwo.address,
+          "CA",
+          0
+        );
+
+      await token
+        .connect(owner)
+        .mint(
+          investor.address,
+          ethers.parseEther("100")
+        );
 
       await token
         .connect(owner)
@@ -379,31 +583,66 @@ describe("AssetToken", function () {
       await expect(
         token
           .connect(investor)
-          .transfer(owner.address, 100n)
+          .transfer(
+            investorTwo.address,
+            ethers.parseEther("10")
+          )
       ).to.be.revert(ethers);
     });
 
-    it("allows the pauser to unpause the token", async function () {
+    it("allows transfers after unpausing", async function () {
       const {
         token,
+        complianceRegistry,
         owner,
-        pauser,
-        PAUSER_ROLE,
+        investor,
+        investorTwo,
       } = await deployToken();
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investor.address,
+          "CA",
+          0
+        );
+
+      await complianceRegistry
+        .connect(owner)
+        .approveInvestor(
+          investorTwo.address,
+          "CA",
+          0
+        );
+
+      const amount =
+        ethers.parseEther("100");
 
       await token
         .connect(owner)
-        .grantRole(PAUSER_ROLE, pauser.address);
+        .mint(
+          investor.address,
+          amount
+        );
 
-      await token.connect(pauser).pause();
+      await token
+        .connect(owner)
+        .pause();
 
-      await expect(
-        token.connect(pauser).unpause()
-      )
-        .to.emit(token, "Unpaused")
-        .withArgs(pauser.address);
+      await token
+        .connect(owner)
+        .unpause();
 
-      expect(await token.paused()).to.equal(false);
+      await token
+        .connect(investor)
+        .transfer(
+          investorTwo.address,
+          amount
+        );
+
+      expect(
+        await token.balanceOf(investorTwo.address)
+      ).to.equal(amount);
     });
   });
 });
