@@ -986,5 +986,144 @@ describe("AssetToken", function () {
       )
     ).to.equal(false);
   });
+  it("sets DEFAULT_ADMIN_ROLE as the administrator of MINTER_ROLE", async function () {
+  const { token } = await deployToken();
+
+  const DEFAULT_ADMIN_ROLE =
+    await token.DEFAULT_ADMIN_ROLE();
+
+  const MINTER_ROLE =
+    await token.MINTER_ROLE();
+
+  expect(
+    await token.getRoleAdmin(MINTER_ROLE)
+  ).to.equal(DEFAULT_ADMIN_ROLE);
+});
+
+it("sets DEFAULT_ADMIN_ROLE as the administrator of BURNER_ROLE", async function () {
+  const { token } = await deployToken();
+
+  const DEFAULT_ADMIN_ROLE =
+    await token.DEFAULT_ADMIN_ROLE();
+
+  const BURNER_ROLE =
+    await token.BURNER_ROLE();
+
+  expect(
+    await token.getRoleAdmin(BURNER_ROLE)
+  ).to.equal(DEFAULT_ADMIN_ROLE);
+});
+
+it("sets DEFAULT_ADMIN_ROLE as the administrator of PAUSER_ROLE", async function () {
+  const { token } = await deployToken();
+
+  const DEFAULT_ADMIN_ROLE =
+    await token.DEFAULT_ADMIN_ROLE();
+
+  const PAUSER_ROLE =
+    await token.PAUSER_ROLE();
+
+  expect(
+    await token.getRoleAdmin(PAUSER_ROLE)
+  ).to.equal(DEFAULT_ADMIN_ROLE);
+});
+it("prevents a non-admin from revoking roles", async function () {
+  const {
+    token,
+    owner,
+    investor,
+    investorTwo,
+  } = await deployToken();
+
+  const MINTER_ROLE =
+    await token.MINTER_ROLE();
+
+  await token
+    .connect(owner)
+    .grantRole(
+      MINTER_ROLE,
+      investorTwo.address
+    );
+
+  await expect(
+    token
+      .connect(investor)
+      .revokeRole(
+        MINTER_ROLE,
+        investorTwo.address
+      )
+  ).to.be.revert(ethers);
+
+  expect(
+    await token.hasRole(
+      MINTER_ROLE,
+      investorTwo.address
+    )
+  ).to.equal(true);
+});
+it("emits RoleGranted when a role is granted", async function () {
+  const {
+    token,
+    owner,
+    investor,
+  } = await deployToken();
+
+  const MINTER_ROLE =
+    await token.MINTER_ROLE();
+
+  await expect(
+    token
+      .connect(owner)
+      .grantRole(
+        MINTER_ROLE,
+        investor.address
+      )
+  )
+    .to.emit(
+      token,
+      "RoleGranted"
+    )
+    .withArgs(
+      MINTER_ROLE,
+      investor.address,
+      owner.address
+    );
+});
+
+it("emits RoleRevoked when a role is revoked", async function () {
+  const {
+    token,
+    owner,
+    investor,
+  } = await deployToken();
+
+  const MINTER_ROLE =
+    await token.MINTER_ROLE();
+
+  await token
+    .connect(owner)
+    .grantRole(
+      MINTER_ROLE,
+      investor.address
+    );
+
+  await expect(
+    token
+      .connect(owner)
+      .revokeRole(
+        MINTER_ROLE,
+        investor.address
+      )
+  )
+    .to.emit(
+      token,
+      "RoleRevoked"
+    )
+    .withArgs(
+      MINTER_ROLE,
+      investor.address,
+      owner.address
+    );
+});
 });
 });
